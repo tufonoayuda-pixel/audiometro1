@@ -129,7 +129,7 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
   // Keyboard controls for tone activation
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code === 'Space' && !isPlaying && isReady && presentationMode === 'manual') {
+      if ((event.code === 'Space' || event.code === 'Escape') && !isPlaying && isReady && presentationMode === 'manual') {
         event.preventDefault();
         onStartTone(settings);
       }
@@ -140,7 +140,7 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
-      if (event.code === 'Space' && isPlaying && presentationMode === 'manual') {
+      if ((event.code === 'Space' || event.code === 'Escape') && isPlaying && presentationMode === 'manual') {
         event.preventDefault();
         onStopTone();
       }
