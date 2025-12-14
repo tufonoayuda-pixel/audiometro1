@@ -154,17 +154,42 @@ export function useAudiometer() {
 
   // Function to start microphone
   const startMicrophone = useCallback(async (volume: number) => {
-    if (!isReady || isMicrophoneActive || !audioContextRef.current || !microphonePermissionGranted || !selectedMicrophoneId) {
-      console.warn('Cannot start microphone: AudioContext not ready, microphone already active, permission not granted, or no microphone selected.');
+    console.log('Attempting to start microphone...');
+    console.log('isReady:', isReady);
+    console.log('isMicrophoneActive (current state):', isMicrophoneActive);
+    console.log('audioContextRef.current:', audioContextRef.current);
+    console.log('microphonePermissionGranted:', microphonePermissionGranted);
+    console.log('selectedMicrophoneId:', selectedMicrophoneId);
+
+    if (!isReady) {
+      console.warn('Cannot start microphone: AudioContext not ready.');
+      return;
+    }
+    if (isMicrophoneActive) {
+      console.warn('Cannot start microphone: Microphone already active (state is true).');
+      return;
+    }
+    if (!audioContextRef.current) {
+      console.warn('Cannot start microphone: AudioContext not initialized.');
+      return;
+    }
+    if (!microphonePermissionGranted) {
+      console.warn('Cannot start microphone: Microphone permission not granted.');
+      return;
+    }
+    if (!selectedMicrophoneId) {
+      console.warn('Cannot start microphone: No microphone selected.');
       return;
     }
 
     const audioContext = audioContextRef.current;
     if (audioContext.state === 'suspended') {
+      console.log('AudioContext is suspended, attempting to resume.');
       await audioContext.resume();
     }
 
     try {
+      console.log(`Attempting to get microphone stream for device: ${selectedMicrophoneId}`);
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: selectedMicrophoneId ? { exact: selectedMicrophoneId } : undefined,
@@ -183,12 +208,11 @@ export function useAudiometer() {
       microphoneGainRef.current = gainNode;
       setIsMicrophoneActive(true);
       setIsMicrophoneMuted(false); // Ensure not muted when starting
-      console.log(`Microphone started using device: ${selectedMicroophoneId}.`);
+      console.log(`Microphone started successfully using device: ${selectedMicrophoneId}. isMicrophoneActive set to true.`);
     } catch (error) {
       console.error('Error accessing microphone:', error, 'Ensure permission is granted and a device is selected.');
-      setIsMicrophoneActive(false);
+      setIsMicrophoneActive(false); // Ensure it's false on error
       setIsMicrophoneMuted(false);
-      // Optionally show a toast error
     }
   }, [isReady, isMicrophoneActive, microphonePermissionGranted, selectedMicrophoneId, dbToGain]);
 
