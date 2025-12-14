@@ -9,11 +9,6 @@ interface AudiometerSettings {
   automaticDuration: number; // seconds
 }
 
-export interface BackgroundNoiseSettings {
-  type: 'none' | 'construction' | 'mall' | 'supermarket' | 'park';
-  volume: number; // dB HL
-}
-
 const FADE_TIME = 0.01; // 10 ms fade-in/out
 
 // Convert dB HL to linear gain. This is a simplified conversion for simulation.
@@ -26,13 +21,6 @@ const dbToGain = (db: number) => {
   return Math.pow(10, (db - 50) / 20);
 };
 
-const noiseSources = {
-  construction: '/audio/construction.mp3',
-  mall: '/audio/mall.mp3',
-  supermarket: '/audio/supermarket.mp3',
-  park: '/audio/park.mp3',
-};
-
 export function useAudiometer() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const oscillatorRef = useRef<OscillatorNode | null>(null);
@@ -43,12 +31,6 @@ export function useAudiometer() {
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isReady, setIsReady] = useState(false);
-
-  // Background noise states
-  const [loadedNoiseBuffers, setLoadedNoiseBuffers] = useState<Map<string, AudioBuffer>>(new Map());
-  const backgroundNoiseSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const backgroundNoiseGainRef = useRef<GainNode | null>(null);
-  const [isBackgroundNoiseActive, setIsBackgroundNoiseActive] = useState(false);
 
   // Microphone states
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -167,97 +149,6 @@ export function useAudiometer() {
       console.warn('Permissions API not supported. Microphone permission will be requested on first use.');
     }
   }, [getMicrophoneDevices, stopMicrophone]);
-
-
-  // Function to load audio buffers
-  const loadAudio = useCallback(async (url: string, key: string) => {
-    console.log(`Attempting to load audio: ${url} with key: ${key}`);
-    if (loadedNoiseBuffers.has(key)) {
-      console.log(`Audio buffer for ${key} already loaded.`);
-      return loadedNoiseBuffers.get(key)!;
-    }
-    if (!audioContextRef.current) {
-      console.error('AudioContext not initialized, cannot load audio.');
-      return null;
-    }
-
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
-      setLoadedNoiseBuffers(prev => new Map(prev).set(key, audioBuffer));
-      console.log(`Successfully loaded audio: ${url}`);
-      return audioBuffer;
-    } catch (error) {
-      console.error(`Error loading audio ${url}:`, error);
-      return null;
-    }
-  }, [loadedNoiseBuffers]);
-
-  // Function to stop background noise
-  const stopBackgroundNoise = useCallback(() => {
-    console.log('Attempting to stop background noise.');
-    if (backgroundNoiseSourceRef.current) {
-      backgroundNoiseSourceRef.current.stop();
-      backgroundNoiseSourceRef.current.disconnect();
-      backgroundNoiseSourceRef.current = null;
-      console.log('Background noise source stopped and disconnected.');
-    }
-    if (backgroundNoiseGainRef.current) {
-      backgroundNoiseGainRef.current.disconnect();
-      backgroundNoiseGainRef.current = null;
-      console.log('Background noise gain disconnected.');
-    }
-    setIsBackgroundNoiseActive(false); // Update state
-    console.log('Background noise stopped.');
-  }, []);
-
-  // Function to start background noise
-  const startBackgroundNoise = useCallback(async (noiseType: BackgroundNoiseSettings['type'], volume: number) => {
-    console.log(`Attempting to start background noise: ${noiseType} at volume: ${volume} dB HL`);
-    if (noiseType === 'none' || !audioContextRef.current) {
-      console.log('Noise type is none or AudioContext not initialized. Stopping noise.');
-      stopBackgroundNoise();
-      return;
-    }
-
-    // Stop any existing noise before starting a new one
-    stopBackgroundNoise(); 
-
-    const audioContext = audioContextRef.current!;
-    if (audioContext.state === 'suspended') {
-      console.log('AudioContext is suspended, attempting to resume for background noise.');
-      await audioContext.resume().catch(e => console.error('Failed to resume AudioContext for background noise:', e));
-    }
-
-    const url = noiseSources[noiseType];
-    const buffer = await loadAudio(url, noiseType);
-
-    if (buffer) {
-      const source = audioContext.createBufferSource();
-      source.buffer = buffer;
-      source.loop = true; // Loop the background noise
-
-      const gainNode = audioContext.createGain();
-      const calculatedGain = dbToGain(volume);
-      gainNode.gain.setValueAtTime(calculatedGain, audioContext.currentTime);
-      console.log(`Background noise gain set to: ${calculatedGain} (from ${volume} dB HL)`);
-
-      source.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      source.start(0);
-
-      backgroundNoiseSourceRef.current = source;
-      backgroundNoiseGainRef.current = gainNode;
-      setIsBackgroundNoiseActive(true); // Update state
-      console.log(`Background noise (${noiseType}) started at ${volume} dB HL.`);
-    } else {
-      console.error(`Failed to get audio buffer for ${noiseType}. Cannot start background noise.`);
-    }
-  }, [loadAudio, stopBackgroundNoise]);
 
   // Function to start microphone
   const startMicrophone = useCallback(async (volume: number) => {
@@ -464,8 +355,5 @@ export function useAudiometer() {
     setSelectedMicrophoneId,
     microphonePermissionGranted,
     requestMicrophonePermission,
-    isBackgroundNoiseActive,
-    startBackgroundNoise,
-    stopBackgroundNoise,
   };
 }

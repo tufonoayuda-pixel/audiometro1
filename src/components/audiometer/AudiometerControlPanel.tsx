@@ -10,7 +10,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BackgroundNoiseSettings } from "@/hooks/useAudiometer"; // Import the new interface
 
 interface AudiometerControlPanelProps {
   onStartTone: (settings: any) => void;
@@ -29,10 +28,6 @@ interface AudiometerControlPanelProps {
   setSelectedMicrophoneId: (id: string) => void;
   microphonePermissionGranted: boolean;
   requestMicrophonePermission: () => void;
-  // NEW PROPS FOR BACKGROUND NOISE
-  isBackgroundNoiseActive: boolean;
-  onStartBackgroundNoise: (noiseType: BackgroundNoiseSettings['type'], volume: number) => void;
-  onStopBackgroundNoise: () => void;
 }
 
 const fixedFrequencies = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000];
@@ -53,10 +48,6 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
   setSelectedMicrophoneId,
   microphonePermissionGranted,
   requestMicrophonePermission,
-  // NEW PROPS DESTRUCTURING
-  isBackgroundNoiseActive,
-  onStartBackgroundNoise,
-  onStopBackgroundNoise,
 }) => {
   const [frequency, setFrequency] = useState<number>(1000);
   const [customFrequency, setCustomFrequency] = useState<string>('');
@@ -66,10 +57,6 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
   const [presentationMode, setPresentationMode] = useState<'manual' | 'automatic'>('manual');
   const [automaticDuration, setAutomaticDuration] = useState<number>(2); // seconds
   const toneButtonRef = useRef<HTMLButtonElement>(null);
-
-  // New state for background noise
-  const [backgroundNoiseType, setBackgroundNoiseType] = useState<BackgroundNoiseSettings['type']>('none');
-  const [backgroundNoiseVolume, setBackgroundNoiseVolume] = useState<number>(30); // Default 30 dB HL for noise
 
   const currentFrequency = customFrequency ? parseFloat(customFrequency) : frequency;
 
@@ -150,51 +137,6 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
       setAutomaticDuration(value);
     }
   };
-
-  // New: Handlers for background noise volume
-  const adjustBackgroundNoiseVolume = (delta: number) => {
-    setBackgroundNoiseVolume((prevVolume) => {
-      const newVolume = prevVolume + delta;
-      const clampedVolume = Math.max(0, Math.min(80, newVolume)); // Noise volume from 0 to 80 dB HL
-      // If noise is active, update its volume immediately
-      if (isBackgroundNoiseActive && backgroundNoiseType !== 'none') {
-        onStartBackgroundNoise(backgroundNoiseType, clampedVolume); // Re-start with new volume
-      }
-      return clampedVolume;
-    });
-  };
-
-  const handleBackgroundNoiseVolumeChange = (value: number[]) => {
-    const newVolume = value[0];
-    setBackgroundNoiseVolume(newVolume);
-    // If noise is active, update its volume immediately
-    if (isBackgroundNoiseActive && backgroundNoiseType !== 'none') {
-      onStartBackgroundNoise(backgroundNoiseType, newVolume); // Re-start with new volume
-    }
-  };
-
-  const handleBackgroundNoiseVolumeInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value);
-    if (!isNaN(value) && value >= 0 && value <= 80) {
-      setBackgroundNoiseVolume(value);
-      // If noise is active, update its volume immediately
-      if (isBackgroundNoiseActive && backgroundNoiseType !== 'none') {
-        onStartBackgroundNoise(backgroundNoiseType, value); // Re-start with new volume
-      }
-    }
-  };
-
-  // Effect to handle background noise type change when active
-  useEffect(() => {
-    if (isBackgroundNoiseActive) {
-      if (backgroundNoiseType === 'none') {
-        onStopBackgroundNoise();
-      } else {
-        onStartBackgroundNoise(backgroundNoiseType, backgroundNoiseVolume);
-      }
-    }
-  }, [backgroundNoiseType, isBackgroundNoiseActive, backgroundNoiseVolume, onStartBackgroundNoise, onStopBackgroundNoise]);
-
 
   // New: Handlers for microphone volume
   const adjustMicrophoneVolume = (delta: number) => {
@@ -433,80 +375,6 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
                 max={20}
                 className="w-full"
               />
-            </div>
-          )}
-        </div>
-
-        {/* Ruido de Fondo */}
-        <div>
-          <Label htmlFor="background-noise-select" className="mb-2 block">Ruido de Fondo</Label>
-          <Select onValueChange={(value: BackgroundNoiseSettings['type']) => setBackgroundNoiseType(value)} value={backgroundNoiseType}>
-            <SelectTrigger id="background-noise-select" className="w-full">
-              <SelectValue placeholder="Seleccionar ruido de fondo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Ninguno</SelectItem>
-              <SelectItem value="construction">Construcción</SelectItem>
-              <SelectItem value="mall">Centro Comercial</SelectItem>
-              <SelectItem value="supermarket">Supermercado</SelectItem>
-              <SelectItem value="park">Parque</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            className={cn(
-              "w-full py-2 mt-4",
-              isBackgroundNoiseActive ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700",
-              (!isReady || backgroundNoiseType === 'none') && "opacity-50 cursor-not-allowed"
-            )}
-            onClick={() => {
-              if (isBackgroundNoiseActive) {
-                onStopBackgroundNoise();
-              } else {
-                onStartBackgroundNoise(backgroundNoiseType, backgroundNoiseVolume);
-              }
-            }}
-            disabled={!isReady || backgroundNoiseType === 'none'}
-          >
-            {isBackgroundNoiseActive ? "Detener Ruido de Fondo" : "Iniciar Ruido de Fondo"}
-          </Button>
-          {backgroundNoiseType !== 'none' && (
-            <div className="mt-4">
-              <Label htmlFor="background-noise-volume-slider" className="mb-2 block">Volumen del Ruido (dB HL)</Label>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => adjustBackgroundNoiseVolume(-5)}
-                  disabled={backgroundNoiseVolume <= 0}
-                >
-                  -
-                </Button>
-                <Slider
-                  id="background-noise-volume-slider"
-                  min={0}
-                  max={80}
-                  step={1}
-                  value={[backgroundNoiseVolume]}
-                  onValueChange={handleBackgroundNoiseVolumeChange}
-                  className="flex-grow"
-                />
-                <Input
-                  type="number"
-                  value={backgroundNoiseVolume}
-                  onChange={handleBackgroundNoiseVolumeInputChange}
-                  className="w-20 text-center"
-                  min={0}
-                  max={80}
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => adjustBackgroundNoiseVolume(5)}
-                  disabled={backgroundNoiseVolume >= 80}
-                >
-                  +
-                </Button>
-              </div>
             </div>
           )}
         </div>
