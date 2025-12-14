@@ -69,7 +69,7 @@ export function useAudiometer() {
         audioContextRef.current.resume().then(() => {
           setIsReady(true);
           console.log('AudioContext initialized and resumed.');
-        });
+        }).catch(e => console.error('Failed to resume AudioContext:', e));
       }
     };
 
@@ -81,13 +81,16 @@ export function useAudiometer() {
       document.removeEventListener('keydown', initAudioContext);
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close();
+        console.log('AudioContext closed on unmount.');
       }
     };
   }, []);
 
   // New: Function to load audio buffers
   const loadAudio = useCallback(async (url: string, key: string) => {
+    console.log(`Attempting to load audio: ${url} with key: ${key}`);
     if (loadedNoiseBuffers.has(key)) {
+      console.log(`Audio buffer for ${key} already loaded.`);
       return loadedNoiseBuffers.get(key)!;
     }
     if (!audioContextRef.current) {
@@ -97,9 +100,13 @@ export function useAudiometer() {
 
     try {
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
       setLoadedNoiseBuffers(prev => new Map(prev).set(key, audioBuffer));
+      console.log(`Successfully loaded audio: ${url}`);
       return audioBuffer;
     } catch (error) {
       console.error(`Error loading audio ${url}:`, error);
@@ -109,14 +116,17 @@ export function useAudiometer() {
 
   // New: Function to stop background noise
   const stopBackgroundNoise = useCallback(() => {
+    console.log('Attempting to stop background noise.');
     if (backgroundNoiseSourceRef.current) {
       backgroundNoiseSourceRef.current.stop();
       backgroundNoiseSourceRef.current.disconnect();
       backgroundNoiseSourceRef.current = null;
+      console.log('Background noise source stopped and disconnected.');
     }
     if (backgroundNoiseGainRef.current) {
       backgroundNoiseGainRef.current.disconnect();
       backgroundNoiseGainRef.current = null;
+      console.log('Background noise gain disconnected.');
     }
     setIsBackgroundNoiseActive(false); // Update state
     console.log('Background noise stopped.');
@@ -124,7 +134,9 @@ export function useAudiometer() {
 
   // New: Function to start background noise
   const startBackgroundNoise = useCallback(async (noiseType: BackgroundNoiseSettings['type'], volume: number) => {
+    console.log(`Attempting to start background noise: ${noiseType} at volume: ${volume} dB HL`);
     if (noiseType === 'none' || !audioContextRef.current) {
+      console.log('Noise type is none or AudioContext not initialized. Stopping noise.');
       stopBackgroundNoise();
       return;
     }
@@ -133,6 +145,11 @@ export function useAudiometer() {
     stopBackgroundNoise(); 
 
     const audioContext = audioContextRef.current!;
+    if (audioContext.state === 'suspended') {
+      console.log('AudioContext is suspended, attempting to resume for background noise.');
+      await audioContext.resume().catch(e => console.error('Failed to resume AudioContext for background noise:', e));
+    }
+
     const url = noiseSources[noiseType];
     const buffer = await loadAudio(url, noiseType);
 
@@ -142,7 +159,9 @@ export function useAudiometer() {
       source.loop = true; // Loop the background noise
 
       const gainNode = audioContext.createGain();
-      gainNode.gain.setValueAtTime(dbToGain(volume), audioContext.currentTime);
+      const calculatedGain = dbToGain(volume);
+      gainNode.gain.setValueAtTime(calculatedGain, audioContext.currentTime);
+      console.log(`Background noise gain set to: ${calculatedGain} (from ${volume} dB HL)`);
 
       source.connect(gainNode);
       gainNode.connect(audioContext.destination);
@@ -152,6 +171,8 @@ export function useAudiometer() {
       backgroundNoiseGainRef.current = gainNode;
       setIsBackgroundNoiseActive(true); // Update state
       console.log(`Background noise (${noiseType}) started at ${volume} dB HL.`);
+    } else {
+      console.error(`Failed to get audio buffer for ${noiseType}. Cannot start background noise.`);
     }
   }, [loadAudio, stopBackgroundNoise]);
 
