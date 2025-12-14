@@ -24,6 +24,11 @@ interface AudiometerControlPanelProps {
   isMicrophoneActive: boolean;
   microphoneVolume: number;
   setMicrophoneVolume: (volume: number) => void;
+  microphoneDevices: MediaDeviceInfo[];
+  selectedMicrophoneId: string | null;
+  setSelectedMicrophoneId: (id: string) => void;
+  microphonePermissionGranted: boolean;
+  requestMicrophonePermission: () => void;
   // NEW PROPS FOR BACKGROUND NOISE
   isBackgroundNoiseActive: boolean;
   onStartBackgroundNoise: (noiseType: BackgroundNoiseSettings['type'], volume: number) => void;
@@ -43,6 +48,11 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
   isMicrophoneActive,
   microphoneVolume,
   setMicrophoneVolume,
+  microphoneDevices,
+  selectedMicrophoneId,
+  setSelectedMicrophoneId,
+  microphonePermissionGranted,
+  requestMicrophonePermission,
   // NEW PROPS DESTRUCTURING
   isBackgroundNoiseActive,
   onStartBackgroundNoise,
@@ -504,64 +514,96 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
         {/* Micrófono del Terapeuta */}
         <div>
           <Label className="mb-2 block">Micrófono del Terapeuta</Label>
-          <div className="flex items-center space-x-2">
-            <Button
-              className={cn(
-                "w-full py-2",
-                isMicrophoneActive ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700",
-                !isReady && "opacity-50 cursor-not-allowed"
+          {!microphonePermissionGranted ? (
+            <Alert className="mb-4 bg-blue-100 border-blue-400 text-blue-800 dark:bg-blue-900 dark:border-blue-600 dark:text-blue-200">
+              <Terminal className="h-4 w-4" />
+              <AlertTitle>Permiso de Micrófono</AlertTitle>
+              <AlertDescription>
+                Necesitas conceder permiso para usar el micrófono.
+                <Button onClick={requestMicrophonePermission} className="ml-2 mt-2">
+                  Solicitar Permiso
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              {microphoneDevices.length > 0 && (
+                <div className="mb-4">
+                  <Label htmlFor="microphone-select" className="mb-2 block">Seleccionar Micrófono</Label>
+                  <Select onValueChange={setSelectedMicrophoneId} value={selectedMicrophoneId || ''}>
+                    <SelectTrigger id="microphone-select" className="w-full">
+                      <SelectValue placeholder="Selecciona un micrófono" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {microphoneDevices.map((device) => (
+                        <SelectItem key={device.deviceId} value={device.deviceId}>
+                          {device.label || `Micrófono ${device.deviceId}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
-              onClick={() => {
-                if (isMicrophoneActive) {
-                  stopMicrophone();
-                } else {
-                  startMicrophone(microphoneVolume);
-                }
-              }}
-              disabled={!isReady}
-            >
-              {isMicrophoneActive ? "Detener Micrófono" : "Iniciar Micrófono"}
-            </Button>
-          </div>
-          {isMicrophoneActive && (
-            <div className="mt-4">
-              <Label htmlFor="microphone-volume-slider" className="mb-2 block">Volumen del Micrófono (dB HL)</Label>
               <div className="flex items-center space-x-2">
                 <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => adjustMicrophoneVolume(-5)}
-                  disabled={microphoneVolume <= 0}
+                  className={cn(
+                    "w-full py-2",
+                    isMicrophoneActive ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700",
+                    (!isReady || !microphonePermissionGranted || !selectedMicrophoneId) && "opacity-50 cursor-not-allowed"
+                  )}
+                  onClick={() => {
+                    if (isMicrophoneActive) {
+                      stopMicrophone();
+                    } else {
+                      startMicrophone(microphoneVolume);
+                    }
+                  }}
+                  disabled={!isReady || !microphonePermissionGranted || !selectedMicrophoneId}
                 >
-                  -
-                </Button>
-                <Slider
-                  id="microphone-volume-slider"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={[microphoneVolume]}
-                  onValueChange={handleMicrophoneVolumeChange}
-                  className="flex-grow"
-                />
-                <Input
-                  type="number"
-                  value={microphoneVolume}
-                  onChange={handleMicrophoneVolumeInputChange}
-                  className="w-20 text-center"
-                  min={0}
-                  max={100}
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => adjustMicrophoneVolume(5)}
-                  disabled={microphoneVolume >= 100}
-                >
-                  +
+                  {isMicrophoneActive ? "Detener Micrófono" : "Iniciar Micrófono"}
                 </Button>
               </div>
-            </div>
+              {isMicrophoneActive && (
+                <div className="mt-4">
+                  <Label htmlFor="microphone-volume-slider" className="mb-2 block">Volumen del Micrófono (dB HL)</Label>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => adjustMicrophoneVolume(-5)}
+                      disabled={microphoneVolume <= 0}
+                    >
+                      -
+                    </Button>
+                    <Slider
+                      id="microphone-volume-slider"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={[microphoneVolume]}
+                      onValueChange={handleMicrophoneVolumeChange}
+                      className="flex-grow"
+                    />
+                    <Input
+                      type="number"
+                      value={microphoneVolume}
+                      onChange={handleMicrophoneVolumeInputChange}
+                      className="w-20 text-center"
+                      min={0}
+                      max={100}
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => adjustMicrophoneVolume(5)}
+                      disabled={microphoneVolume >= 100}
+                    >
+                      +
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 

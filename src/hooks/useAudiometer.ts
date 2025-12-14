@@ -20,14 +20,10 @@ const FADE_TIME = 0.01; // 10 ms fade-in/out
 // 0 dB HL is often considered the threshold of normal hearing.
 // We'll map -10 dB HL to a very low gain and 100 dB HL to a high gain.
 // A common formula for gain from dB is 10^(dB/20).
-// Let's assume 0 dB HL corresponds to a gain of 0.1 (arbitrary reference for simulation)
+// Let's assume 50 dB HL corresponds to a gain of 1 (0 dB relative to this reference)
 // and adjust relative to that.
 const dbToGain = (db: number) => {
-  // A more realistic mapping might involve a reference SPL, but for simulation,
-  // we'll use a direct exponential scaling.
-  // Let's scale -10dB to 0.01 and 100dB to 1.0 (or higher if needed)
-  // This is a simplified approach.
-  return Math.pow(10, (db - 50) / 20); // Adjusting the reference point for a reasonable range
+  return Math.pow(10, (db - 50) / 20);
 };
 
 const noiseSources = {
@@ -48,18 +44,21 @@ export function useAudiometer() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
-  // New state for background noise
+  // Background noise states
   const [loadedNoiseBuffers, setLoadedNoiseBuffers] = useState<Map<string, AudioBuffer>>(new Map());
   const backgroundNoiseSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const backgroundNoiseGainRef = useRef<GainNode | null>(null);
-  const [isBackgroundNoiseActive, setIsBackgroundNoiseActive] = useState(false); // NEW STATE
+  const [isBackgroundNoiseActive, setIsBackgroundNoiseActive] = useState(false);
 
-  // New state for microphone
+  // Microphone states
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const microphoneSourceRef = useRef<MediaStreamSourceNode | null>(null);
   const microphoneGainRef = useRef<GainNode | null>(null);
   const [isMicrophoneActive, setIsMicrophoneActive] = useState(false);
   const [microphoneVolume, setMicrophoneVolume] = useState(50); // Default microphone volume in dB HL
+  const [microphoneDevices, setMicrophoneDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedMicrophoneId, setSelectedMicrophoneId] = useState<string | null>(null);
+  const [microphonePermissionGranted, setMicrophonePermissionGranted] = useState(false);
 
   useEffect(() => {
     // Initialize AudioContext on user interaction to bypass autoplay policies
@@ -86,7 +85,70 @@ export function useAudiometer() {
     };
   }, []);
 
-  // New: Function to load audio buffers
+  // Function to get available microphone devices
+  const getMicrophoneDevices = useCallback(async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      console.warn('enumerateDevices() not supported.');
+      return;
+    }
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputDevices = devices.filter(device => device.kind === 'audioinput');
+      setMicrophoneDevices(audioInputDevices);
+      if (audioInputDevices.length > 0 && !selectedMicrophoneId) {
+        setSelectedMicrophoneId(audioInputDevices[0].deviceId); // Select the first one by default
+      }
+      console.log('Microphone devices enumerated:', audioInputDevices);
+    } catch (error) {
+      console.error('Error enumerating devices:', error);
+    }
+  }, [selectedMicrophoneId]);
+
+  // Function to request microphone permission
+  const requestMicrophonePermission = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop()); // Stop tracks immediately after getting permission
+      setMicrophonePermissionGranted(true);
+      console.log('Microphone permission granted.');
+      getMicrophoneDevices(); // Enumerate devices after permission is granted
+    } catch (error) {
+      console.error('Error requesting microphone permission:', error);
+      setMicrophonePermissionGranted(false);
+      // Optionally show a toast error
+    }
+  }, [getMicrophoneDevices]);
+
+  // Check initial permission status and enumerate devices if already granted
+  useEffect(() => {
+    if (navigator.mediaDevices && navigator.mediaDevices.permissions) {
+      navigator.mediaDevices.permissions.query({ name: 'microphone' as PermissionName }).then(permissionStatus => {
+        if (permissionStatus.state === 'granted') {
+          setMicrophonePermissionGranted(true);
+          getMicrophoneDevices();
+        } else if (permissionStatus.state === 'prompt') {
+          setMicrophonePermissionGranted(false); // Will prompt on first startMicrophone call
+        } else { // denied
+          setMicrophonePermissionGranted(false);
+        }
+        permissionStatus.onchange = () => {
+          if (permissionStatus.state === 'granted') {
+            setMicrophonePermissionGranted(true);
+            getMicrophoneDevices();
+          } else {
+            setMicrophonePermissionGranted(false);
+            stopMicrophone(); // Stop microphone if permission is revoked
+          }
+        };
+      });
+    } else {
+      // Fallback for browsers that don't support Permissions API
+      console.warn('Permissions API not supported. Microphone permission will be requested on first use.');
+    }
+  }, [getMicrophoneDevices, stopMicrophone]);
+
+
+  // Function to load audio buffers
   const loadAudio = useCallback(async (url: string, key: string) => {
     console.log(`Attempting to load audio: ${url} with key: ${key}`);
     if (loadedNoiseBuffers.has(key)) {
@@ -114,7 +176,7 @@ export function useAudiometer() {
     }
   }, [loadedNoiseBuffers]);
 
-  // New: Function to stop background noise
+  // Function to stop background noise
   const stopBackgroundNoise = useCallback(() => {
     console.log('Attempting to stop background noise.');
     if (backgroundNoiseSourceRef.current) {
@@ -132,7 +194,7 @@ export function useAudiometer() {
     console.log('Background noise stopped.');
   }, []);
 
-  // New: Function to start background noise
+  // Function to start background noise
   const startBackgroundNoise = useCallback(async (noiseType: BackgroundNoiseSettings['type'], volume: number) => {
     console.log(`Attempting to start background noise: ${noiseType} at volume: ${volume} dB HL`);
     if (noiseType === 'none' || !audioContextRef.current) {
@@ -176,7 +238,7 @@ export function useAudiometer() {
     }
   }, [loadAudio, stopBackgroundNoise]);
 
-  // New: Function to stop microphone
+  // Function to stop microphone
   const stopMicrophone = useCallback(() => {
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
@@ -194,10 +256,10 @@ export function useAudiometer() {
     console.log('Microphone stopped.');
   }, []);
 
-  // New: Function to start microphone
+  // Function to start microphone
   const startMicrophone = useCallback(async (volume: number) => {
-    if (!isReady || isMicrophoneActive || !audioContextRef.current) {
-      console.warn('AudioContext not ready or microphone already active.');
+    if (!isReady || isMicrophoneActive || !audioContextRef.current || !microphonePermissionGranted || !selectedMicrophoneId) {
+      console.warn('Cannot start microphone: AudioContext not ready, microphone already active, permission not granted, or no microphone selected.');
       return;
     }
 
@@ -207,7 +269,11 @@ export function useAudiometer() {
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: selectedMicrophoneId ? { exact: selectedMicrophoneId } : undefined,
+        },
+      });
       mediaStreamRef.current = stream;
 
       const source = audioContext.createMediaStreamSource(stream);
@@ -220,13 +286,13 @@ export function useAudiometer() {
       microphoneSourceRef.current = source;
       microphoneGainRef.current = gainNode;
       setIsMicrophoneActive(true);
-      console.log('Microphone started.');
+      console.log(`Microphone started using device: ${selectedMicrophoneId}.`);
     } catch (error) {
-      console.error('Error accessing microphone:', error);
+      console.error('Error accessing microphone:', error, 'Ensure permission is granted and a device is selected.');
       setIsMicrophoneActive(false);
       // Optionally show a toast error
     }
-  }, [isReady, isMicrophoneActive, dbToGain]);
+  }, [isReady, isMicrophoneActive, microphonePermissionGranted, selectedMicrophoneId, dbToGain]);
 
   // Update microphone gain if volume changes
   useEffect(() => {
@@ -371,6 +437,7 @@ export function useAudiometer() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
+    document.removeEventListener('keyup', handleKeyUp); // Remove previous listener to avoid duplicates
     document.addEventListener('keyup', handleKeyUp);
 
     return () => {
@@ -389,8 +456,13 @@ export function useAudiometer() {
     isMicrophoneActive,
     microphoneVolume,
     setMicrophoneVolume,
-    isBackgroundNoiseActive, // NEW EXPORT
-    startBackgroundNoise,   // NEW EXPORT
-    stopBackgroundNoise,    // NEW EXPORT
+    microphoneDevices,
+    selectedMicrophoneId,
+    setSelectedMicrophoneId,
+    microphonePermissionGranted,
+    requestMicrophonePermission,
+    isBackgroundNoiseActive,
+    startBackgroundNoise,
+    stopBackgroundNoise,
   };
 }
