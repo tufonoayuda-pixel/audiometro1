@@ -163,6 +163,9 @@ const AudiometerPage = () => {
       </div>
 
       <MadeWithDyad />
+      <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
+        Creado por Flgo. Cristobal San Martin
+      </div>
     </div>
   );
 };
