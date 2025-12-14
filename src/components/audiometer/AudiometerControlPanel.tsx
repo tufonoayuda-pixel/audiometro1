@@ -90,6 +90,13 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
     }
   };
 
+  const adjustIntensity = (delta: number) => {
+    setIntensity((prevIntensity) => {
+      const newIntensity = prevIntensity + delta;
+      return Math.max(-10, Math.min(100, newIntensity));
+    });
+  };
+
   const handleIntensityChange = (value: number[]) => {
     setIntensity(value[0]);
   };
@@ -226,7 +233,15 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
         {/* Intensidad */}
         <div>
           <Label htmlFor="intensity-slider" className="mb-2 block">Intensidad (dB HL)</Label>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2"> {/* Changed space-x-4 to space-x-2 for consistency */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => adjustIntensity(-5)}
+              disabled={intensity <= -10}
+            >
+              -
+            </Button>
             <Slider
               id="intensity-slider"
               min={-10}
@@ -244,6 +259,14 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
               min={-10}
               max={100}
             />
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => adjustIntensity(5)}
+              disabled={intensity >= 100}
+            >
+              +
+            </Button>
           </div>
         </div>
 
