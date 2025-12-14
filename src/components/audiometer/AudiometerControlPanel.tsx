@@ -16,6 +16,7 @@ interface AudiometerControlPanelProps {
   onStopTone: () => void;
   isPlaying: boolean;
   isReady: boolean;
+  onSaveThreshold: (frequency: number, intensity: number, laterality: 'left' | 'right' | 'binaural') => void;
 }
 
 const fixedFrequencies = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000];
@@ -25,6 +26,7 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
   onStopTone,
   isPlaying,
   isReady,
+  onSaveThreshold,
 }) => {
   const [frequency, setFrequency] = useState<number>(1000);
   const [customFrequency, setCustomFrequency] = useState<string>('');
@@ -233,7 +235,7 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
         {/* Intensidad */}
         <div>
           <Label htmlFor="intensity-slider" className="mb-2 block">Intensidad (dB HL)</Label>
-          <div className="flex items-center space-x-2"> {/* Changed space-x-4 to space-x-2 for consistency */}
+          <div className="flex items-center space-x-2">
             <Button
               variant="outline"
               size="icon"
@@ -337,23 +339,32 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
           )}
         </div>
 
-        {/* Botón de Tono */}
-        <Button
-          ref={toneButtonRef}
-          className={cn(
-            "w-full py-4 text-lg font-bold",
-            isPlaying ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700",
-            !isReady && "opacity-50 cursor-not-allowed"
-          )}
-          disabled={!isReady || isFrequencyInvalid}
-          onMouseDown={() => presentationMode === 'manual' && onStartTone(settings)}
-          onMouseUp={() => presentationMode === 'manual' && onStopTone()}
-          onClick={() => presentationMode === 'automatic' && (isPlaying ? onStopTone() : onStartTone(settings))}
-          onTouchStart={() => presentationMode === 'manual' && onStartTone(settings)}
-          onTouchEnd={() => presentationMode === 'manual' && onStopTone()}
-        >
-          {isPlaying ? "Detener Tono" : "Iniciar Tono"}
-        </Button>
+        {/* Botones de Tono y Guardar */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Button
+            ref={toneButtonRef}
+            className={cn(
+              "w-full py-4 text-lg font-bold",
+              isPlaying ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700",
+              !isReady && "opacity-50 cursor-not-allowed"
+            )}
+            disabled={!isReady || isFrequencyInvalid}
+            onMouseDown={() => presentationMode === 'manual' && onStartTone(settings)}
+            onMouseUp={() => presentationMode === 'manual' && onStopTone()}
+            onClick={() => presentationMode === 'automatic' && (isPlaying ? onStopTone() : onStartTone(settings))}
+            onTouchStart={() => presentationMode === 'manual' && onStartTone(settings)}
+            onTouchEnd={() => presentationMode === 'manual' && onStopTone()}
+          >
+            {isPlaying ? "Detener Tono" : "Iniciar Tono"}
+          </Button>
+          <Button
+            className="w-full py-4 text-lg font-bold bg-blue-600 hover:bg-blue-700 text-white"
+            onClick={() => onSaveThreshold(currentFrequency, intensity, laterality)}
+            disabled={!isReady || isFrequencyInvalid || currentFrequency === 0}
+          >
+            Guardar Resultado
+          </Button>
+        </div>
       </div>
     </div>
   );

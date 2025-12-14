@@ -72,6 +72,21 @@ const AudiometerPage = () => {
     }));
   };
 
+  const handleSaveResult = (frequency: number, intensity: number, laterality: 'left' | 'right' | 'binaural') => {
+    if (!fixedFrequencies.includes(frequency)) {
+      toast.error("Solo se pueden guardar umbrales para frecuencias fijas.");
+      return;
+    }
+
+    if (laterality === 'right' || laterality === 'binaural') {
+      handleThresholdChange(frequency, 'right', intensity);
+    }
+    if (laterality === 'left' || laterality === 'binaural') {
+      handleThresholdChange(frequency, 'left', intensity);
+    }
+    toast.success(`Umbral de ${intensity} dB HL guardado para ${frequency} Hz en oído ${laterality === 'right' ? 'derecho' : laterality === 'left' ? 'izquierdo' : 'binaural'}.`);
+  };
+
   const handlePrint = () => {
     // Check if patient data is complete enough for printing
     if (!patientData.fullName || !patientData.age || !patientData.examinerName) {
@@ -80,6 +95,8 @@ const AudiometerPage = () => {
     }
     window.print();
   };
+
+  const fixedFrequencies = Object.keys(initialThresholds).map(Number); // Get fixed frequencies from initialThresholds
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 lg:p-8 flex flex-col items-center">
@@ -106,6 +123,7 @@ const AudiometerPage = () => {
                   onStopTone={stopTone}
                   isPlaying={isPlaying}
                   isReady={isReady}
+                  onSaveThreshold={handleSaveResult}
                 />
               </CardContent>
             </Card>
