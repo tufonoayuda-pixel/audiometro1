@@ -106,7 +106,7 @@ const AudiometerPage = () => {
 
       <div className="w-full max-w-6xl">
         <Tabs defaultValue="audiometer" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
             <TabsTrigger value="audiometer">Simulador</TabsTrigger>
             <TabsTrigger value="patient-data">Datos del Paciente</TabsTrigger>
             <TabsTrigger value="audiogram">Audiograma</TabsTrigger>
