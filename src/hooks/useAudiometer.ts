@@ -85,6 +85,24 @@ export function useAudiometer() {
     };
   }, []);
 
+  // Function to stop microphone (defined early to avoid TDZ issues)
+  const stopMicrophone = useCallback(() => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (microphoneSourceRef.current) {
+      microphoneSourceRef.current.disconnect();
+      microphoneSourceRef.current = null;
+    }
+    if (microphoneGainRef.current) {
+      microphoneGainRef.current.disconnect();
+      microphoneGainRef.current = null;
+    }
+    setIsMicrophoneActive(false);
+    console.log('Microphone stopped.');
+  }, []);
+
   // Function to get available microphone devices
   const getMicrophoneDevices = useCallback(async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
@@ -121,6 +139,9 @@ export function useAudiometer() {
 
   // Check initial permission status and enumerate devices if already granted
   useEffect(() => {
+    // Capture stopMicrophone for this effect's closure
+    const currentStopMicrophone = stopMicrophone;
+
     if (navigator.mediaDevices && navigator.mediaDevices.permissions) {
       navigator.mediaDevices.permissions.query({ name: 'microphone' as PermissionName }).then(permissionStatus => {
         if (permissionStatus.state === 'granted') {
@@ -137,7 +158,7 @@ export function useAudiometer() {
             getMicrophoneDevices();
           } else {
             setMicrophonePermissionGranted(false);
-            stopMicrophone(); // Stop microphone if permission is revoked
+            currentStopMicrophone(); // Use the captured reference
           }
         };
       });
@@ -237,24 +258,6 @@ export function useAudiometer() {
       console.error(`Failed to get audio buffer for ${noiseType}. Cannot start background noise.`);
     }
   }, [loadAudio, stopBackgroundNoise]);
-
-  // Function to stop microphone
-  const stopMicrophone = useCallback(() => {
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      mediaStreamRef.current = null;
-    }
-    if (microphoneSourceRef.current) {
-      microphoneSourceRef.current.disconnect();
-      microphoneSourceRef.current = null;
-    }
-    if (microphoneGainRef.current) {
-      microphoneGainRef.current.disconnect();
-      microphoneGainRef.current = null;
-    }
-    setIsMicrophoneActive(false);
-    console.log('Microphone stopped.');
-  }, []);
 
   // Function to start microphone
   const startMicrophone = useCallback(async (volume: number) => {
