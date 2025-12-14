@@ -60,6 +60,9 @@ const AudiometerPage = () => {
     isMicrophoneActive,
     microphoneVolume,
     setMicrophoneVolume,
+    isBackgroundNoiseActive, // NEW
+    startBackgroundNoise,   // NEW
+    stopBackgroundNoise,    // NEW
   } = useAudiometer();
   const [patientData, setPatientData] = useState<PatientData>({
     fullName: '',
@@ -139,6 +142,9 @@ const AudiometerPage = () => {
                   isMicrophoneActive={isMicrophoneActive}
                   microphoneVolume={microphoneVolume}
                   setMicrophoneVolume={setMicrophoneVolume}
+                  isBackgroundNoiseActive={isBackgroundNoiseActive} // NEW
+                  onStartBackgroundNoise={startBackgroundNoise}   // NEW
+                  onStopBackgroundNoise={stopBackgroundNoise}    // NEW
                 />
               </CardContent>
             </Card>

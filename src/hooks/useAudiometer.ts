@@ -7,7 +7,6 @@ interface AudiometerSettings {
   stimulusType: 'pure' | 'warble' | 'pulsed';
   presentationMode: 'manual' | 'automatic';
   automaticDuration: number; // seconds
-  backgroundNoise: BackgroundNoiseSettings; // New: Background noise settings
 }
 
 export interface BackgroundNoiseSettings {
@@ -53,6 +52,7 @@ export function useAudiometer() {
   const [loadedNoiseBuffers, setLoadedNoiseBuffers] = useState<Map<string, AudioBuffer>>(new Map());
   const backgroundNoiseSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const backgroundNoiseGainRef = useRef<GainNode | null>(null);
+  const [isBackgroundNoiseActive, setIsBackgroundNoiseActive] = useState(false); // NEW STATE
 
   // New state for microphone
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -118,6 +118,8 @@ export function useAudiometer() {
       backgroundNoiseGainRef.current.disconnect();
       backgroundNoiseGainRef.current = null;
     }
+    setIsBackgroundNoiseActive(false); // Update state
+    console.log('Background noise stopped.');
   }, []);
 
   // New: Function to start background noise
@@ -127,7 +129,8 @@ export function useAudiometer() {
       return;
     }
 
-    stopBackgroundNoise(); // Stop any existing noise before starting a new one
+    // Stop any existing noise before starting a new one
+    stopBackgroundNoise(); 
 
     const audioContext = audioContextRef.current!;
     const url = noiseSources[noiseType];
@@ -147,6 +150,8 @@ export function useAudiometer() {
 
       backgroundNoiseSourceRef.current = source;
       backgroundNoiseGainRef.current = gainNode;
+      setIsBackgroundNoiseActive(true); // Update state
+      console.log(`Background noise (${noiseType}) started at ${volume} dB HL.`);
     }
   }, [loadAudio, stopBackgroundNoise]);
 
@@ -232,14 +237,12 @@ export function useAudiometer() {
       }
       setIsPlaying(false);
     }
-    // Also stop background noise when tone stops
-    stopBackgroundNoise();
-  }, [stopBackgroundNoise]);
+  }, []);
 
   const startTone = useCallback((settings: AudiometerSettings) => {
     if (!isReady || isPlaying) return;
 
-    const { frequency, intensity, laterality, stimulusType, presentationMode, automaticDuration, backgroundNoise } = settings;
+    const { frequency, intensity, laterality, stimulusType, presentationMode, automaticDuration } = settings;
     const audioContext = audioContextRef.current;
     if (!audioContext) {
       console.error('AudioContext not initialized.');
@@ -252,12 +255,7 @@ export function useAudiometer() {
     }
 
     // Stop any existing tone before starting a new one
-    stopTone(); // This will also stop background noise
-
-    // Start background noise if selected
-    if (backgroundNoise.type !== 'none') {
-      startBackgroundNoise(backgroundNoise.type, backgroundNoise.volume);
-    }
+    stopTone();
 
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
@@ -312,7 +310,6 @@ export function useAudiometer() {
       pulseGain.gain.setValueAtTime(0.5, audioContext.currentTime); // Modulate between 0 and 1, so 0.5 amplitude
       
       // Connect LFO to gainNode's gain, but scale it to go from 0 to targetGain
-      // A square wave from -1 to 1 needs to be mapped to 0 to 1 for gain.
       // (value + 1) / 2 will map -1 to 0 and 1 to 1.
       const gainModulator = audioContext.createGain();
       gainModulator.gain.setValueAtTime(targetGain / 2, audioContext.currentTime); // Amplitude of modulation
@@ -334,7 +331,7 @@ export function useAudiometer() {
         stopTone();
       }, automaticDuration * 1000);
     }
-  }, [isReady, isPlaying, stopTone, startBackgroundNoise]);
+  }, [isReady, isPlaying, stopTone]);
 
   // Keyboard controls
   useEffect(() => {
@@ -371,5 +368,8 @@ export function useAudiometer() {
     isMicrophoneActive,
     microphoneVolume,
     setMicrophoneVolume,
+    isBackgroundNoiseActive, // NEW EXPORT
+    startBackgroundNoise,   // NEW EXPORT
+    stopBackgroundNoise,    // NEW EXPORT
   };
 }
