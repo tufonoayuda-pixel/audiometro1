@@ -50,7 +50,17 @@ const initialThresholds: Thresholds = {
 };
 
 const AudiometerPage = () => {
-  const { startTone, stopTone, isPlaying, isReady } = useAudiometer();
+  const {
+    startTone,
+    stopTone,
+    isPlaying,
+    isReady,
+    startMicrophone,
+    stopMicrophone,
+    isMicrophoneActive,
+    microphoneVolume,
+    setMicrophoneVolume,
+  } = useAudiometer();
   const [patientData, setPatientData] = useState<PatientData>({
     fullName: '',
     age: '',
@@ -124,6 +134,11 @@ const AudiometerPage = () => {
                   isPlaying={isPlaying}
                   isReady={isReady}
                   onSaveThreshold={handleSaveResult}
+                  startMicrophone={startMicrophone}
+                  stopMicrophone={stopMicrophone}
+                  isMicrophoneActive={isMicrophoneActive}
+                  microphoneVolume={microphoneVolume}
+                  setMicrophoneVolume={setMicrophoneVolume}
                 />
               </CardContent>
             </Card>

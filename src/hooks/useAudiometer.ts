@@ -54,6 +54,13 @@ export function useAudiometer() {
   const backgroundNoiseSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const backgroundNoiseGainRef = useRef<GainNode | null>(null);
 
+  // New state for microphone
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const microphoneSourceRef = useRef<MediaStreamSourceNode | null>(null);
+  const microphoneGainRef = useRef<GainNode | null>(null);
+  const [isMicrophoneActive, setIsMicrophoneActive] = useState(false);
+  const [microphoneVolume, setMicrophoneVolume] = useState(50); // Default microphone volume in dB HL
+
   useEffect(() => {
     // Initialize AudioContext on user interaction to bypass autoplay policies
     const initAudioContext = () => {
@@ -142,6 +149,65 @@ export function useAudiometer() {
       backgroundNoiseGainRef.current = gainNode;
     }
   }, [loadAudio, stopBackgroundNoise]);
+
+  // New: Function to stop microphone
+  const stopMicrophone = useCallback(() => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (microphoneSourceRef.current) {
+      microphoneSourceRef.current.disconnect();
+      microphoneSourceRef.current = null;
+    }
+    if (microphoneGainRef.current) {
+      microphoneGainRef.current.disconnect();
+      microphoneGainRef.current = null;
+    }
+    setIsMicrophoneActive(false);
+    console.log('Microphone stopped.');
+  }, []);
+
+  // New: Function to start microphone
+  const startMicrophone = useCallback(async (volume: number) => {
+    if (!isReady || isMicrophoneActive || !audioContextRef.current) {
+      console.warn('AudioContext not ready or microphone already active.');
+      return;
+    }
+
+    const audioContext = audioContextRef.current;
+    if (audioContext.state === 'suspended') {
+      await audioContext.resume();
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
+      const source = audioContext.createMediaStreamSource(stream);
+      const gainNode = audioContext.createGain();
+      gainNode.gain.setValueAtTime(dbToGain(volume), audioContext.currentTime);
+
+      source.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      microphoneSourceRef.current = source;
+      microphoneGainRef.current = gainNode;
+      setIsMicrophoneActive(true);
+      console.log('Microphone started.');
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      setIsMicrophoneActive(false);
+      // Optionally show a toast error
+    }
+  }, [isReady, isMicrophoneActive, dbToGain]);
+
+  // Update microphone gain if volume changes
+  useEffect(() => {
+    if (microphoneGainRef.current && audioContextRef.current) {
+      microphoneGainRef.current.gain.setValueAtTime(dbToGain(microphoneVolume), audioContextRef.current.currentTime);
+    }
+  }, [microphoneVolume, dbToGain]);
 
 
   const stopTone = useCallback(() => {
@@ -295,5 +361,15 @@ export function useAudiometer() {
     };
   }, [isPlaying]); // Only re-run if isPlaying changes
 
-  return { startTone, stopTone, isPlaying, isReady };
+  return {
+    startTone,
+    stopTone,
+    isPlaying,
+    isReady,
+    startMicrophone,
+    stopMicrophone,
+    isMicrophoneActive,
+    microphoneVolume,
+    setMicrophoneVolume,
+  };
 }

@@ -18,6 +18,12 @@ interface AudiometerControlPanelProps {
   isPlaying: boolean;
   isReady: boolean;
   onSaveThreshold: (frequency: number, intensity: number, laterality: 'left' | 'right' | 'binaural') => void;
+  // New props for microphone
+  startMicrophone: (volume: number) => void;
+  stopMicrophone: () => void;
+  isMicrophoneActive: boolean;
+  microphoneVolume: number;
+  setMicrophoneVolume: (volume: number) => void;
 }
 
 const fixedFrequencies = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000];
@@ -28,6 +34,11 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
   isPlaying,
   isReady,
   onSaveThreshold,
+  startMicrophone,
+  stopMicrophone,
+  isMicrophoneActive,
+  microphoneVolume,
+  setMicrophoneVolume,
 }) => {
   const [frequency, setFrequency] = useState<number>(1000);
   const [customFrequency, setCustomFrequency] = useState<string>('');
@@ -138,6 +149,25 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
     const value = parseInt(e.target.value);
     if (!isNaN(value) && value >= 0 && value <= 80) {
       setBackgroundNoiseVolume(value);
+    }
+  };
+
+  // New: Handlers for microphone volume
+  const adjustMicrophoneVolume = (delta: number) => {
+    setMicrophoneVolume((prevVolume) => {
+      const newVolume = prevVolume + delta;
+      return Math.max(0, Math.min(100, newVolume)); // Microphone volume from 0 to 100 dB HL
+    });
+  };
+
+  const handleMicrophoneVolumeChange = (value: number[]) => {
+    setMicrophoneVolume(value[0]);
+  };
+
+  const handleMicrophoneVolumeInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value);
+    if (!isNaN(value) && value >= 0 && value <= 100) {
+      setMicrophoneVolume(value);
     }
   };
 
@@ -416,6 +446,70 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
                   size="icon"
                   onClick={() => adjustBackgroundNoiseVolume(5)}
                   disabled={backgroundNoiseVolume >= 80}
+                >
+                  +
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Micrófono del Terapeuta */}
+        <div>
+          <Label className="mb-2 block">Micrófono del Terapeuta</Label>
+          <div className="flex items-center space-x-2">
+            <Button
+              className={cn(
+                "w-full py-2",
+                isMicrophoneActive ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700",
+                !isReady && "opacity-50 cursor-not-allowed"
+              )}
+              onClick={() => {
+                if (isMicrophoneActive) {
+                  stopMicrophone();
+                } else {
+                  startMicrophone(microphoneVolume);
+                }
+              }}
+              disabled={!isReady}
+            >
+              {isMicrophoneActive ? "Detener Micrófono" : "Iniciar Micrófono"}
+            </Button>
+          </div>
+          {isMicrophoneActive && (
+            <div className="mt-4">
+              <Label htmlFor="microphone-volume-slider" className="mb-2 block">Volumen del Micrófono (dB HL)</Label>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => adjustMicrophoneVolume(-5)}
+                  disabled={microphoneVolume <= 0}
+                >
+                  -
+                </Button>
+                <Slider
+                  id="microphone-volume-slider"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={[microphoneVolume]}
+                  onValueChange={handleMicrophoneVolumeChange}
+                  className="flex-grow"
+                />
+                <Input
+                  type="number"
+                  value={microphoneVolume}
+                  onChange={handleMicrophoneVolumeInputChange}
+                  className="w-20 text-center"
+                  min={0}
+                  max={100}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => adjustMicrophoneVolume(5)}
+                  disabled={microphoneVolume >= 100}
                 >
                   +
                 </Button>
