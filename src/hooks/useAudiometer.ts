@@ -7,6 +7,12 @@ interface AudiometerSettings {
   stimulusType: 'pure' | 'warble' | 'pulsed';
   presentationMode: 'manual' | 'automatic';
   automaticDuration: number; // seconds
+  backgroundNoise: BackgroundNoiseSettings; // New: Background noise settings
+}
+
+export interface BackgroundNoiseSettings {
+  type: 'none' | 'construction' | 'mall' | 'supermarket' | 'park';
+  volume: number; // dB HL
 }
 
 const FADE_TIME = 0.01; // 10 ms fade-in/out
@@ -25,6 +31,13 @@ const dbToGain = (db: number) => {
   return Math.pow(10, (db - 50) / 20); // Adjusting the reference point for a reasonable range
 };
 
+const noiseSources = {
+  construction: '/audio/construction.mp3',
+  mall: '/audio/mall.mp3',
+  supermarket: '/audio/supermarket.mp3',
+  park: '/audio/park.mp3',
+};
+
 export function useAudiometer() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const oscillatorRef = useRef<OscillatorNode | null>(null);
@@ -35,6 +48,11 @@ export function useAudiometer() {
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isReady, setIsReady] = useState(false);
+
+  // New state for background noise
+  const [loadedNoiseBuffers, setLoadedNoiseBuffers] = useState<Map<string, AudioBuffer>>(new Map());
+  const backgroundNoiseSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const backgroundNoiseGainRef = useRef<GainNode | null>(null);
 
   useEffect(() => {
     // Initialize AudioContext on user interaction to bypass autoplay policies
@@ -60,6 +78,72 @@ export function useAudiometer() {
     };
   }, []);
 
+  // New: Function to load audio buffers
+  const loadAudio = useCallback(async (url: string, key: string) => {
+    if (loadedNoiseBuffers.has(key)) {
+      return loadedNoiseBuffers.get(key)!;
+    }
+    if (!audioContextRef.current) {
+      console.error('AudioContext not initialized, cannot load audio.');
+      return null;
+    }
+
+    try {
+      const response = await fetch(url);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+      setLoadedNoiseBuffers(prev => new Map(prev).set(key, audioBuffer));
+      return audioBuffer;
+    } catch (error) {
+      console.error(`Error loading audio ${url}:`, error);
+      return null;
+    }
+  }, [loadedNoiseBuffers]);
+
+  // New: Function to stop background noise
+  const stopBackgroundNoise = useCallback(() => {
+    if (backgroundNoiseSourceRef.current) {
+      backgroundNoiseSourceRef.current.stop();
+      backgroundNoiseSourceRef.current.disconnect();
+      backgroundNoiseSourceRef.current = null;
+    }
+    if (backgroundNoiseGainRef.current) {
+      backgroundNoiseGainRef.current.disconnect();
+      backgroundNoiseGainRef.current = null;
+    }
+  }, []);
+
+  // New: Function to start background noise
+  const startBackgroundNoise = useCallback(async (noiseType: BackgroundNoiseSettings['type'], volume: number) => {
+    if (noiseType === 'none' || !audioContextRef.current) {
+      stopBackgroundNoise();
+      return;
+    }
+
+    stopBackgroundNoise(); // Stop any existing noise before starting a new one
+
+    const audioContext = audioContextRef.current!;
+    const url = noiseSources[noiseType];
+    const buffer = await loadAudio(url, noiseType);
+
+    if (buffer) {
+      const source = audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true; // Loop the background noise
+
+      const gainNode = audioContext.createGain();
+      gainNode.gain.setValueAtTime(dbToGain(volume), audioContext.currentTime);
+
+      source.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      source.start(0);
+
+      backgroundNoiseSourceRef.current = source;
+      backgroundNoiseGainRef.current = gainNode;
+    }
+  }, [loadAudio, stopBackgroundNoise]);
+
+
   const stopTone = useCallback(() => {
     if (oscillatorRef.current) {
       const now = audioContextRef.current!.currentTime;
@@ -82,12 +166,14 @@ export function useAudiometer() {
       }
       setIsPlaying(false);
     }
-  }, []);
+    // Also stop background noise when tone stops
+    stopBackgroundNoise();
+  }, [stopBackgroundNoise]);
 
   const startTone = useCallback((settings: AudiometerSettings) => {
     if (!isReady || isPlaying) return;
 
-    const { frequency, intensity, laterality, stimulusType, presentationMode, automaticDuration } = settings;
+    const { frequency, intensity, laterality, stimulusType, presentationMode, automaticDuration, backgroundNoise } = settings;
     const audioContext = audioContextRef.current;
     if (!audioContext) {
       console.error('AudioContext not initialized.');
@@ -100,7 +186,12 @@ export function useAudiometer() {
     }
 
     // Stop any existing tone before starting a new one
-    stopTone();
+    stopTone(); // This will also stop background noise
+
+    // Start background noise if selected
+    if (backgroundNoise.type !== 'none') {
+      startBackgroundNoise(backgroundNoise.type, backgroundNoise.volume);
+    }
 
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
@@ -177,7 +268,7 @@ export function useAudiometer() {
         stopTone();
       }, automaticDuration * 1000);
     }
-  }, [isReady, isPlaying, stopTone]);
+  }, [isReady, isPlaying, stopTone, startBackgroundNoise]);
 
   // Keyboard controls
   useEffect(() => {

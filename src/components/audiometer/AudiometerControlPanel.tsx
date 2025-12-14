@@ -10,6 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BackgroundNoiseSettings } from "@/hooks/useAudiometer"; // Import the new interface
 
 interface AudiometerControlPanelProps {
   onStartTone: (settings: any) => void;
@@ -36,6 +37,10 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
   const [presentationMode, setPresentationMode] = useState<'manual' | 'automatic'>('manual');
   const [automaticDuration, setAutomaticDuration] = useState<number>(2); // seconds
   const toneButtonRef = useRef<HTMLButtonElement>(null);
+
+  // New state for background noise
+  const [backgroundNoiseType, setBackgroundNoiseType] = useState<BackgroundNoiseSettings['type']>('none');
+  const [backgroundNoiseVolume, setBackgroundNoiseVolume] = useState<number>(30); // Default 30 dB HL for noise
 
   const currentFrequency = customFrequency ? parseFloat(customFrequency) : frequency;
 
@@ -112,8 +117,27 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
 
   const handleAutomaticDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value);
-    if (!isNaN(value) && value >= 1 && value <= 20) { // Updated max to 20
+    if (!isNaN(value) && value >= 1 && value <= 20) {
       setAutomaticDuration(value);
+    }
+  };
+
+  // New: Handlers for background noise volume
+  const adjustBackgroundNoiseVolume = (delta: number) => {
+    setBackgroundNoiseVolume((prevVolume) => {
+      const newVolume = prevVolume + delta;
+      return Math.max(0, Math.min(80, newVolume)); // Noise volume from 0 to 80 dB HL
+    });
+  };
+
+  const handleBackgroundNoiseVolumeChange = (value: number[]) => {
+    setBackgroundNoiseVolume(value[0]);
+  };
+
+  const handleBackgroundNoiseVolumeInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value);
+    if (!isNaN(value) && value >= 0 && value <= 80) {
+      setBackgroundNoiseVolume(value);
     }
   };
 
@@ -124,6 +148,10 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
     stimulusType,
     presentationMode,
     automaticDuration,
+    backgroundNoise: {
+      type: backgroundNoiseType,
+      volume: backgroundNoiseVolume,
+    },
   };
 
   // Keyboard controls for tone activation
@@ -332,9 +360,66 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
                 value={automaticDuration}
                 onChange={handleAutomaticDurationChange}
                 min={1}
-                max={20} // Updated max to 20
+                max={20}
                 className="w-full"
               />
+            </div>
+          )}
+        </div>
+
+        {/* Ruido de Fondo */}
+        <div>
+          <Label htmlFor="background-noise-select" className="mb-2 block">Ruido de Fondo</Label>
+          <Select onValueChange={(value: BackgroundNoiseSettings['type']) => setBackgroundNoiseType(value)} value={backgroundNoiseType}>
+            <SelectTrigger id="background-noise-select" className="w-full">
+              <SelectValue placeholder="Seleccionar ruido de fondo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Ninguno</SelectItem>
+              <SelectItem value="construction">Construcción</SelectItem>
+              <SelectItem value="mall">Centro Comercial</SelectItem>
+              <SelectItem value="supermarket">Supermercado</SelectItem>
+              <SelectItem value="park">Parque</SelectItem>
+            </SelectContent>
+          </Select>
+          {backgroundNoiseType !== 'none' && (
+            <div className="mt-4">
+              <Label htmlFor="background-noise-volume-slider" className="mb-2 block">Volumen del Ruido (dB HL)</Label>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => adjustBackgroundNoiseVolume(-5)}
+                  disabled={backgroundNoiseVolume <= 0}
+                >
+                  -
+                </Button>
+                <Slider
+                  id="background-noise-volume-slider"
+                  min={0}
+                  max={80}
+                  step={1}
+                  value={[backgroundNoiseVolume]}
+                  onValueChange={handleBackgroundNoiseVolumeChange}
+                  className="flex-grow"
+                />
+                <Input
+                  type="number"
+                  value={backgroundNoiseVolume}
+                  onChange={handleBackgroundNoiseVolumeInputChange}
+                  className="w-20 text-center"
+                  min={0}
+                  max={80}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => adjustBackgroundNoiseVolume(5)}
+                  disabled={backgroundNoiseVolume >= 80}
+                >
+                  +
+                </Button>
+              </div>
             </div>
           )}
         </div>
