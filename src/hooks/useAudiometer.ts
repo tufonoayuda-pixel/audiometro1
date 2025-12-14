@@ -37,6 +37,7 @@ export function useAudiometer() {
   const microphoneSourceRef = useRef<MediaStreamSourceNode | null>(null);
   const microphoneGainRef = useRef<GainNode | null>(null);
   const [isMicrophoneActive, setIsMicrophoneActive] = useState(false);
+  const [isMicrophoneMuted, setIsMicrophoneMuted] = useState(false); // New state for mute
   const [microphoneVolume, setMicrophoneVolume] = useState(50); // Default microphone volume in dB HL
   const [microphoneDevices, setMicrophoneDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedMicrophoneId, setSelectedMicrophoneId] = useState<string | null>(null);
@@ -82,6 +83,7 @@ export function useAudiometer() {
       microphoneGainRef.current = null;
     }
     setIsMicrophoneActive(false);
+    setIsMicrophoneMuted(false); // Reset mute state when stopping
     console.log('Microphone stopped.');
   }, []);
 
@@ -172,7 +174,7 @@ export function useAudiometer() {
 
       const source = audioContext.createMediaStreamSource(stream);
       const gainNode = audioContext.createGain();
-      gainNode.gain.setValueAtTime(dbToGain(volume), audioContext.currentTime);
+      gainNode.gain.setValueAtTime(dbToGain(volume), audioContext.currentTime); // Set initial gain based on volume
 
       source.connect(gainNode);
       gainNode.connect(audioContext.destination);
@@ -180,20 +182,40 @@ export function useAudiometer() {
       microphoneSourceRef.current = source;
       microphoneGainRef.current = gainNode;
       setIsMicrophoneActive(true);
-      console.log(`Microphone started using device: ${selectedMicrophoneId}.`);
+      setIsMicrophoneMuted(false); // Ensure not muted when starting
+      console.log(`Microphone started using device: ${selectedMicroophoneId}.`);
     } catch (error) {
       console.error('Error accessing microphone:', error, 'Ensure permission is granted and a device is selected.');
       setIsMicrophoneActive(false);
+      setIsMicrophoneMuted(false);
       // Optionally show a toast error
     }
   }, [isReady, isMicrophoneActive, microphonePermissionGranted, selectedMicrophoneId, dbToGain]);
 
-  // Update microphone gain if volume changes
-  useEffect(() => {
+  // New: Function to toggle microphone mute state
+  const toggleMicrophoneMute = useCallback(() => {
     if (microphoneGainRef.current && audioContextRef.current) {
+      const now = audioContextRef.current.currentTime;
+      if (isMicrophoneMuted) {
+        // Unmute: set gain back to current microphone volume
+        microphoneGainRef.current.gain.setValueAtTime(dbToGain(microphoneVolume), now);
+        setIsMicrophoneMuted(false);
+        console.log('Microphone unmuted.');
+      } else {
+        // Mute: set gain to 0
+        microphoneGainRef.current.gain.setValueAtTime(0, now);
+        setIsMicrophoneMuted(true);
+        console.log('Microphone muted.');
+      }
+    }
+  }, [isMicrophoneMuted, microphoneVolume, dbToGain]);
+
+  // Update microphone gain if volume changes, but only if not muted
+  useEffect(() => {
+    if (microphoneGainRef.current && audioContextRef.current && !isMicrophoneMuted) {
       microphoneGainRef.current.gain.setValueAtTime(dbToGain(microphoneVolume), audioContextRef.current.currentTime);
     }
-  }, [microphoneVolume, dbToGain]);
+  }, [microphoneVolume, isMicrophoneMuted, dbToGain]);
 
 
   const stopTone = useCallback(() => {
@@ -348,6 +370,8 @@ export function useAudiometer() {
     startMicrophone,
     stopMicrophone,
     isMicrophoneActive,
+    isMicrophoneMuted, // Export new state
+    toggleMicrophoneMute, // Export new function
     microphoneVolume,
     setMicrophoneVolume,
     microphoneDevices,

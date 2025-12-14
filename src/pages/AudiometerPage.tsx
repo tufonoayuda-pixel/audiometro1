@@ -58,6 +58,8 @@ const AudiometerPage = () => {
     startMicrophone,
     stopMicrophone,
     isMicrophoneActive,
+    isMicrophoneMuted, // Destructure new state
+    toggleMicrophoneMute, // Destructure new function
     microphoneVolume,
     setMicrophoneVolume,
     microphoneDevices,
@@ -142,11 +144,13 @@ const AudiometerPage = () => {
                   startMicrophone={startMicrophone}
                   stopMicrophone={stopMicrophone}
                   isMicrophoneActive={isMicrophoneActive}
+                  isMicrophoneMuted={isMicrophoneMuted} // Pass new state
+                  toggleMicrophoneMute={toggleMicrophoneMute} // Pass new function
                   microphoneVolume={microphoneVolume}
                   setMicrophoneVolume={setMicrophoneVolume}
                   microphoneDevices={microphoneDevices}
                   selectedMicrophoneId={selectedMicrophoneId}
-                  setSelectedMicrorophoneId={setSelectedMicrophoneId}
+                  setSelectedMicrophoneId={setSelectedMicrophoneId}
                   microphonePermissionGranted={microphonePermissionGranted}
                   requestMicrophonePermission={requestMicrophonePermission}
                 />

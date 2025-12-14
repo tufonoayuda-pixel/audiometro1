@@ -21,6 +21,8 @@ interface AudiometerControlPanelProps {
   startMicrophone: (volume: number) => void;
   stopMicrophone: () => void;
   isMicrophoneActive: boolean;
+  isMicrophoneMuted: boolean; // New prop
+  toggleMicrophoneMute: () => void; // New prop
   microphoneVolume: number;
   setMicrophoneVolume: (volume: number) => void;
   microphoneDevices: MediaDeviceInfo[];
@@ -41,6 +43,8 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
   startMicrophone,
   stopMicrophone,
   isMicrophoneActive,
+  isMicrophoneMuted, // Destructure new prop
+  toggleMicrophoneMute, // Destructure new prop
   microphoneVolume,
   setMicrophoneVolume,
   microphoneDevices,
@@ -412,7 +416,7 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
                   </Select>
                 </div>
               )}
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-col sm:flex-row gap-2 items-center">
                 <Button
                   className={cn(
                     "w-full py-2",
@@ -430,6 +434,17 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
                 >
                   {isMicrophoneActive ? "Detener Micrófono" : "Iniciar Micrófono"}
                 </Button>
+                {isMicrophoneActive && (
+                  <Button
+                    className={cn(
+                      "w-full py-2",
+                      isMicrophoneMuted ? "bg-yellow-600 hover:bg-yellow-700" : "bg-gray-600 hover:bg-gray-700",
+                    )}
+                    onClick={toggleMicrophoneMute}
+                  >
+                    {isMicrophoneMuted ? "Activar Micrófono" : "Silenciar Micrófono"}
+                  </Button>
+                )}
               </div>
               {isMicrophoneActive && (
                 <div className="mt-4">
@@ -439,7 +454,7 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
                       variant="outline"
                       size="icon"
                       onClick={() => adjustMicrophoneVolume(-5)}
-                      disabled={microphoneVolume <= 0}
+                      disabled={microphoneVolume <= 0 || isMicrophoneMuted}
                     >
                       -
                     </Button>
@@ -451,6 +466,7 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
                       value={[microphoneVolume]}
                       onValueChange={handleMicrophoneVolumeChange}
                       className="flex-grow"
+                      disabled={isMicrophoneMuted}
                     />
                     <Input
                       type="number"
@@ -459,12 +475,13 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
                       className="w-20 text-center"
                       min={0}
                       max={100}
+                      disabled={isMicrophoneMuted}
                     />
                     <Button
                       variant="outline"
                       size="icon"
                       onClick={() => adjustMicrophoneVolume(5)}
-                      disabled={microphoneVolume >= 100}
+                      disabled={microphoneVolume >= 100 || isMicrophoneMuted}
                     >
                       +
                     </Button>
