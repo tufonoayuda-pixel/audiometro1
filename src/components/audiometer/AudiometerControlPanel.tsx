@@ -112,7 +112,7 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
 
   const handleAutomaticDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value);
-    if (!isNaN(value) && value >= 1 && value <= 5) {
+    if (!isNaN(value) && value >= 1 && value <= 20) { // Updated max to 20
       setAutomaticDuration(value);
     }
   };
@@ -332,7 +332,7 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
                 value={automaticDuration}
                 onChange={handleAutomaticDurationChange}
                 min={1}
-                max={5}
+                max={20} // Updated max to 20
                 className="w-full"
               />
             </div>
