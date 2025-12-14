@@ -206,6 +206,7 @@ export function useAudiometer() {
 
       microphoneSourceRef.current = source;
       microphoneGainRef.current = gainNode;
+      console.log('Setting isMicrophoneActive to true.'); // Added log
       setIsMicrophoneActive(true);
       setIsMicrophoneMuted(false); // Ensure not muted when starting
       console.log(`Microphone started successfully using device: ${selectedMicrophoneId}. isMicrophoneActive set to true.`);
