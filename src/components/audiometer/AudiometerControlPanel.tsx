@@ -38,12 +38,15 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
   const currentFrequency = customFrequency ? parseFloat(customFrequency) : frequency;
 
   const handleFrequencyChange = (value: string) => {
-    if (fixedFrequencies.includes(parseInt(value))) {
-      setFrequency(parseInt(value));
-      setCustomFrequency('');
-    } else {
+    if (value === 'custom') {
       setFrequency(0); // Indicate custom frequency is active
-      setCustomFrequency(value);
+      setCustomFrequency(''); // Clear custom input initially
+    } else {
+      const parsedValue = parseInt(value);
+      if (fixedFrequencies.includes(parsedValue)) {
+        setFrequency(parsedValue);
+        setCustomFrequency('');
+      }
     }
   };
 
@@ -52,6 +55,38 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
     if (value === '' || (/^\d+$/.test(value) && parseInt(value) >= 100 && parseInt(value) <= 10000)) {
       setCustomFrequency(value);
       setFrequency(0); // Indicate custom frequency is active
+    }
+  };
+
+  const adjustFrequency = (delta: number) => {
+    let newFreq = currentFrequency;
+
+    if (frequency !== 0 && fixedFrequencies.includes(frequency)) {
+      // Currently a fixed frequency is selected
+      const currentIndex = fixedFrequencies.indexOf(frequency);
+      let newIndex = currentIndex + delta;
+
+      if (newIndex >= 0 && newIndex < fixedFrequencies.length) {
+        newFreq = fixedFrequencies[newIndex];
+        setFrequency(newFreq);
+        setCustomFrequency('');
+      } else if (newIndex < 0) {
+        // Going below the lowest fixed frequency, switch to custom
+        newFreq = Math.max(100, fixedFrequencies[0] + delta * 50); // Adjust by 50Hz from lowest fixed
+        setFrequency(0);
+        setCustomFrequency(String(newFreq));
+      } else {
+        // Going above the highest fixed frequency, switch to custom
+        newFreq = Math.min(10000, fixedFrequencies[fixedFrequencies.length - 1] + delta * 50); // Adjust by 50Hz from highest fixed
+        setFrequency(0);
+        setCustomFrequency(String(newFreq));
+      }
+    } else {
+      // Currently a custom frequency is selected or input is empty
+      newFreq = (customFrequency === '' ? 1000 : parseFloat(customFrequency)) + delta * 50;
+      newFreq = Math.max(100, Math.min(10000, newFreq));
+      setFrequency(0);
+      setCustomFrequency(String(newFreq));
     }
   };
 
@@ -111,6 +146,8 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
     };
   }, [isPlaying, isReady, onStartTone, onStopTone, settings, presentationMode]);
 
+  const isFrequencyInvalid = customFrequency !== '' && (parseFloat(customFrequency) < 100 || parseFloat(customFrequency) > 10000);
+
   return (
     <div className="p-6 border rounded-lg shadow-md bg-card text-card-foreground w-full max-w-md mx-auto">
       <h2 className="text-2xl font-semibold mb-6 text-center">Simulador de Audiómetro</h2>
@@ -139,19 +176,37 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
         {/* Frecuencia */}
         <div>
           <Label htmlFor="frequency-select" className="mb-2 block">Frecuencia (Hz)</Label>
-          <Select onValueChange={handleFrequencyChange} value={frequency === 0 && customFrequency === '' ? '' : (fixedFrequencies.includes(frequency) ? String(frequency) : 'custom')}>
-            <SelectTrigger id="frequency-select" className="w-full">
-              <SelectValue placeholder="Seleccionar o ingresar" />
-            </SelectTrigger>
-            <SelectContent>
-              {fixedFrequencies.map((freq) => (
-                <SelectItem key={freq} value={String(freq)}>
-                  {freq} Hz
-                </SelectItem>
-              ))}
-              <SelectItem value="custom">Frecuencia Personalizada</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => adjustFrequency(-1)}
+              disabled={currentFrequency <= 100 || isFrequencyInvalid}
+            >
+              -
+            </Button>
+            <Select onValueChange={handleFrequencyChange} value={frequency === 0 && customFrequency === '' ? '' : (fixedFrequencies.includes(frequency) ? String(frequency) : 'custom')}>
+              <SelectTrigger id="frequency-select" className="w-full">
+                <SelectValue placeholder="Seleccionar o ingresar" />
+              </SelectTrigger>
+              <SelectContent>
+                {fixedFrequencies.map((freq) => (
+                  <SelectItem key={freq} value={String(freq)}>
+                    {freq} Hz
+                  </SelectItem>
+                ))}
+                <SelectItem value="custom">Frecuencia Personalizada</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => adjustFrequency(1)}
+              disabled={currentFrequency >= 10000 || isFrequencyInvalid}
+            >
+              +
+            </Button>
+          </div>
           {(frequency === 0 || !fixedFrequencies.includes(frequency)) && (
             <Input
               type="number"
@@ -163,7 +218,7 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
               max={10000}
             />
           )}
-          {customFrequency && (parseFloat(customFrequency) < 100 || parseFloat(customFrequency) > 10000) && (
+          {isFrequencyInvalid && (
             <p className="text-red-500 text-sm mt-1">La frecuencia personalizada debe estar entre 100 y 10000 Hz.</p>
           )}
         </div>
@@ -267,7 +322,7 @@ export const AudiometerControlPanel: React.FC<AudiometerControlPanelProps> = ({
             isPlaying ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700",
             !isReady && "opacity-50 cursor-not-allowed"
           )}
-          disabled={!isReady || (customFrequency !== '' && (parseFloat(customFrequency) < 100 || parseFloat(customFrequency) > 10000))}
+          disabled={!isReady || isFrequencyInvalid}
           onMouseDown={() => presentationMode === 'manual' && onStartTone(settings)}
           onMouseUp={() => presentationMode === 'manual' && onStopTone()}
           onClick={() => presentationMode === 'automatic' && (isPlaying ? onStopTone() : onStartTone(settings))}
